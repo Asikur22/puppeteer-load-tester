@@ -1,0 +1,14 @@
+{
+	"name": "puppeteer-load-tester",
+	"version": "1.0.0",
+	"main": "index.js",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"author": "Asiqur Rahman <asikur22@gmail.com>",
+	"license": "MIT",
+	"description": "Website load tester using Puppeteer",
+	"dependencies": {
+		"puppeteer": "^24.15.0"
+	}
+}
