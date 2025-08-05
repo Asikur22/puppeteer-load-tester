@@ -74,6 +74,47 @@ function getRandomVPNProfile() {
 	return VPN_PROFILES[Math.floor(Math.random() * VPN_PROFILES.length)];
 }
 
+// Check if an element is safe to click (won't open external apps)
+async function isSafeToClick(element) {
+	// Check if it's a link with mailto: or tel:
+	const href = await element.evaluate((el) => el.href).catch(() => null);
+	if (href) {
+		if (href.startsWith("mailto:") || href.startsWith("tel:") || href.startsWith("sms:") || href.startsWith("facetime:")) {
+			return false;
+		}
+	}
+
+	// Check if it's a button with specific attributes that might open external apps
+	const attributes = await element
+		.evaluate((el) => {
+			const attrs = {};
+			for (const { name, value } of el.attributes) {
+				attrs[name] = value;
+			}
+			return attrs;
+		})
+		.catch(() => ({}));
+
+	// Check for attributes that might trigger external apps
+	if (attributes["data-action"] === "mail" || attributes["data-action"] === "call" || attributes["data-action"] === "facetime") {
+		return false;
+	}
+
+	// Check for common button classes that might open external apps
+	const className = await element.evaluate((el) => el.className).catch(() => "");
+	if (className.includes("email") || className.includes("phone") || className.includes("contact") || className.includes("mail") || className.includes("call")) {
+		return false;
+	}
+
+	// Check for common button text that might open external apps
+	const text = await element.evaluate((el) => el.textContent).catch(() => "");
+	if (text.toLowerCase().includes("email") || text.toLowerCase().includes("call us") || text.toLowerCase().includes("contact us") || text.toLowerCase().includes("phone") || text.toLowerCase().includes("facetime")) {
+		return false;
+	}
+
+	return true;
+}
+
 // Main worker function
 async function simulateUser(userId) {
 	const vpnProfile = getRandomVPNProfile();
@@ -164,16 +205,30 @@ async function simulateUserBehavior(page, userId) {
 	// Random wait after scroll
 	await delay(Math.random() * 2000 + 500);
 
-	// Try to click a random button or link
-	const buttons = await page.$$("button:not([disabled]), a:not([disabled])");
-	if (buttons.length > 0) {
-		const randomButton = buttons[Math.floor(Math.random() * buttons.length)];
-		try {
-			await randomButton.click();
-			// Wait after click for potential navigation
-			await delay(Math.random() * 3000 + 1000);
-		} catch (e) {
-			// Click failed (element not interactable or other issue)
+	// Try to click a random SAFE button or link
+	const clickableElements = await page.$$('button:not([disabled]), a:not([disabled]), [role="button"]:not([disabled])');
+	if (clickableElements.length > 0) {
+		// Filter out unsafe elements
+		const safeElements = [];
+		for (const element of clickableElements) {
+			if (await isSafeToClick(element)) {
+				safeElements.push(element);
+			}
+		}
+
+		if (safeElements.length > 0) {
+			const randomElement = safeElements[Math.floor(Math.random() * safeElements.length)];
+			try {
+				await randomElement.click();
+				console.log(`User ${userId}: clicked on a safe elements`);
+
+				// Wait after click for potential navigation
+				await delay(Math.random() * 3000 + 1000);
+			} catch (e) {
+				// Click failed (element not interactable or other issue)
+			}
+		} else {
+			console.log(`User ${userId}: No safe clickable elements found`);
 		}
 	}
 
@@ -238,7 +293,7 @@ async function randomNavigation(page, userId) {
 			}));
 
 			// Skip invalid links
-			if (!linkData.url || linkData.url.includes("javascript:") || linkData.url.includes("#") || linkData.url.includes("mailto:") || linkData.url.includes("tel:") || linkData.text === "") {
+			if (!linkData.url || linkData.url.includes("javascript:") || linkData.url.includes("#") || linkData.url.includes("mailto:") || linkData.url.includes("tel:") || linkData.url.includes("sms:") || linkData.url.includes("facetime:") || linkData.text === "") {
 				continue;
 			}
 
